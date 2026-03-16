@@ -2,6 +2,7 @@ import { useState } from 'react'
 import AddPageForm from './components/AddPageForm'
 import CreatePostForm from './components/CreatePostForm'
 import ScheduledPostsTable from './components/ScheduledPostsTable'
+import FacebookLoginButton from './components/FacebookLoginButton'
 
 function App() {
   const [postsRefreshKey, setPostsRefreshKey] = useState(0)
@@ -57,7 +58,11 @@ function App() {
         )}
 
         {activeTab === 'pages' && (
-          <div className="max-w-md">
+          <div className="max-w-md space-y-6">
+            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="mb-3 text-lg font-semibold text-gray-800">Kết nối Facebook</h2>
+              <FacebookLoginButton onSuccess={handlePageAdded} />
+            </div>
             <AddPageForm onSuccess={handlePageAdded} />
           </div>
         )}

@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "ngrok": "node scripts/ngrok-tunnel.cjs",
+    "dev:all": "concurrently \"npm run dev\" \"npm run ngrok\""
   },
   "dependencies": {
+    "@greatsumini/react-facebook-login": "^3.4.0",
     "axios": "^1.6.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -19,6 +22,8 @@
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.16",
+    "concurrently": "^8.2.2",
+    "ngrok": "^5.0.0-beta.2",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.3.6",
     "vite": "^5.0.8"
