@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import FacebookLogin from '@greatsumini/react-facebook-login'
-import { authFacebook } from '../services/api'
+import { getMeAccounts } from '../services/facebookApi'
+import { mergePages } from '../services/storage'
 
 const SCOPES = 'public_profile,pages_show_list,pages_read_engagement,pages_manage_posts'
 const APP_ID = import.meta.env.VITE_FB_APP_ID || ''
@@ -22,16 +23,12 @@ export default function FacebookLoginButton({ onSuccess }) {
     }
     setLoading(true)
     try {
-      await authFacebook(accessToken)
-      showToast('success', 'Kết nối Fanpage thành công!')
+      const pages = await getMeAccounts(accessToken)
+      mergePages(pages)
+      showToast('success', `Đã lấy ${pages.length} Fanpage. Bạn có thể lên lịch đăng bài.`)
       onSuccess?.()
     } catch (err) {
-      const msg =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        'Kết nối thất bại. Kiểm tra backend (port 8080) và token.'
-      showToast('error', msg)
+      showToast('error', err?.message || 'Lấy danh sách Fanpage thất bại.')
     } finally {
       setLoading(false)
     }
@@ -62,13 +59,13 @@ export default function FacebookLoginButton({ onSuccess }) {
         style={{}}
       >
         {loading ? (
-          <span>Đang kết nối...</span>
+          <span>Đang lấy danh sách Fanpage...</span>
         ) : (
           <>
             <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
             </svg>
-            <span>Đăng nhập Facebook &amp; kết nối Fanpage</span>
+            <span>Đăng nhập Facebook &amp; lấy Fanpage</span>
           </>
         )}
       </FacebookLogin>

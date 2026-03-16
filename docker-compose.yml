@@ -2,7 +2,7 @@ services:
   facebook-scheduler-fe:
     build: .
     ports:
-      - "3000:80"
+      - "3001:80"
     # Nếu backend chạy trên máy host, dùng host.docker.internal (Windows/Mac)
     # environment:
     #   - VITE_API_URL=http://host.docker.internal:8081/api

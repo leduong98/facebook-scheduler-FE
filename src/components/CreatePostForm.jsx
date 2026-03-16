@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import DatePicker from 'react-datepicker'
-import { getPages, createPost } from '../services/api'
+import { getPages, addScheduledPost } from '../services/storage'
 
 export default function CreatePostForm({ onSuccess }) {
   const [pages, setPages] = useState([])
@@ -8,23 +8,12 @@ export default function CreatePostForm({ onSuccess }) {
   const [content, setContent] = useState('')
   const [scheduledTime, setScheduledTime] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [loadingPages, setLoadingPages] = useState(true)
   const [message, setMessage] = useState({ type: '', text: '' })
 
   useEffect(() => {
-    const fetchPages = async () => {
-      try {
-        const res = await getPages()
-        const data = res.data?.data ?? res.data ?? []
-        setPages(Array.isArray(data) ? data : [])
-        if (data?.length && !pageId) setPageId(data[0].id ?? data[0].pageId ?? '')
-      } catch {
-        setPages([])
-      } finally {
-        setLoadingPages(false)
-      }
-    }
-    fetchPages()
+    setPages(getPages())
+    const first = getPages()[0]
+    if (first) setPageId(first.pageId)
   }, [])
 
   const handleSubmit = async (e) => {
@@ -38,48 +27,52 @@ export default function CreatePostForm({ onSuccess }) {
       setMessage({ type: 'error', text: 'Vui lòng chọn thời gian đăng.' })
       return
     }
-    if (!pageId) {
+    const page = pages.find((p) => p.pageId === pageId)
+    if (!page) {
       setMessage({ type: 'error', text: 'Vui lòng chọn Fanpage.' })
       return
     }
     setLoading(true)
     try {
-      await createPost({
-        pageId,
+      addScheduledPost({
+        pageId: page.pageId,
+        pageName: page.pageName,
+        pageAccessToken: page.pageAccessToken,
         content: content.trim(),
-        scheduled_time: scheduledTime.toISOString(),
+        scheduledTime: scheduledTime.toISOString(),
       })
-      setMessage({ type: 'success', text: 'Đã lên lịch đăng bài thành công!' })
+      setMessage({ type: 'success', text: 'Đã lên lịch đăng bài! (Trình duyệt sẽ tự đăng khi đến giờ)' })
       setContent('')
       setScheduledTime(null)
       onSuccess?.()
     } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Có lỗi xảy ra.'
-      setMessage({ type: 'error', text: msg })
+      setMessage({ type: 'error', text: err?.message || 'Có lỗi xảy ra.' })
     } finally {
       setLoading(false)
     }
   }
 
-  const pageValue = (p) => p.id ?? p.pageId
-  const pageLabel = (p) => p.pageName ?? p.name ?? pageValue(p)
-
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
       <h2 className="mb-4 text-lg font-semibold text-gray-800">Tạo bài viết &amp; lên lịch</h2>
+      {pages.length === 0 && (
+        <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Chưa có Fanpage. Vào tab &quot;Quản lý Page&quot; → Đăng nhập Facebook để lấy Fanpage.
+        </p>
+      )}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-gray-700">Fanpage</label>
           <select
             value={pageId}
             onChange={(e) => setPageId(e.target.value)}
-            disabled={loadingPages}
+            disabled={pages.length === 0}
             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition disabled:bg-gray-100"
           >
             <option value="">-- Chọn Fanpage --</option>
             {pages.map((p) => (
-              <option key={pageValue(p)} value={pageValue(p)}>
-                {pageLabel(p)}
+              <option key={p.pageId} value={p.pageId}>
+                {p.pageName || p.pageId}
               </option>
             ))}
           </select>
@@ -121,7 +114,7 @@ export default function CreatePostForm({ onSuccess }) {
         )}
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || pages.length === 0}
           className="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
         >
           {loading ? 'Đang xử lý...' : 'Lên lịch đăng'}

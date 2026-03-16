@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getPosts } from '../services/api'
+import { getScheduledPosts } from '../services/storage'
 
 const statusStyles = {
   PENDING: 'bg-amber-100 text-amber-800',
@@ -31,43 +31,17 @@ function formatDateTime(iso) {
 
 export default function ScheduledPostsTable({ refreshKey }) {
   const [posts, setPosts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
 
-  const fetchPosts = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await getPosts()
-      const data = res.data?.data ?? res.data ?? []
-      setPosts(Array.isArray(data) ? data : [])
-    } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Không tải được danh sách bài viết.')
-      setPosts([])
-    } finally {
-      setLoading(false)
-    }
-  }
+  const load = () => setPosts(getScheduledPosts())
 
   useEffect(() => {
-    fetchPosts()
+    load()
   }, [refreshKey])
 
-  if (loading) {
-    return (
-      <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
-        Đang tải...
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
-        {error}
-      </div>
-    )
-  }
+  useEffect(() => {
+    const t = setInterval(load, 5000)
+    return () => clearInterval(t)
+  }, [])
 
   if (posts.length === 0) {
     return (
@@ -81,6 +55,7 @@ export default function ScheduledPostsTable({ refreshKey }) {
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
         <h2 className="text-lg font-semibold text-gray-800">Bài viết đã lên lịch</h2>
+        <p className="mt-1 text-sm text-gray-500">Cập nhật mỗi 5 giây. Tab phải mở để tự đăng khi đến giờ.</p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[600px]">
@@ -97,7 +72,6 @@ export default function ScheduledPostsTable({ refreshKey }) {
               const status = (post.status || 'PENDING').toUpperCase()
               const style = statusStyles[status] || statusStyles.PENDING
               const label = statusLabel[status] || status
-              const pageName = post.page?.pageName ?? post.page?.name ?? post.pageId ?? '—'
               return (
                 <tr
                   key={post.id}
@@ -105,10 +79,13 @@ export default function ScheduledPostsTable({ refreshKey }) {
                 >
                   <td className="max-w-xs px-6 py-4 text-gray-800">
                     <span className="line-clamp-2">{post.content || '—'}</span>
+                    {post.errorMessage && (
+                      <p className="mt-1 text-xs text-red-600 line-clamp-1">{post.errorMessage}</p>
+                    )}
                   </td>
-                  <td className="px-6 py-4 text-gray-700">{pageName}</td>
-                  <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
-                    {formatDateTime(post.scheduled_time ?? post.scheduledTime)}
+                  <td className="px-6 py-4 text-gray-700">{post.pageName || post.pageId || '—'}</td>
+                  <td className="whitespace-nowrap px-6 py-4 text-gray-700">
+                    {formatDateTime(post.scheduledTime)}
                   </td>
                   <td className="px-6 py-4">
                     <span

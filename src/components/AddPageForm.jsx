@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createPage } from '../services/api'
+import { getPages, setPages } from '../services/storage'
 
 export default function AddPageForm({ onSuccess }) {
   const [pageId, setPageId] = useState('')
@@ -17,19 +17,21 @@ export default function AddPageForm({ onSuccess }) {
     }
     setLoading(true)
     try {
-      await createPage({
+      const pages = getPages()
+      const existing = pages.filter((p) => p.pageId !== pageId.trim())
+      existing.push({
         pageId: pageId.trim(),
         pageName: pageName.trim(),
         pageAccessToken: pageAccessToken.trim(),
       })
-      setMessage({ type: 'success', text: 'Lưu Page thành công!' })
+      setPages(existing)
+      setMessage({ type: 'success', text: 'Đã lưu Page vào trình duyệt (localStorage).' })
       setPageId('')
       setPageName('')
       setPageAccessToken('')
       onSuccess?.()
     } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Có lỗi xảy ra.'
-      setMessage({ type: 'error', text: msg })
+      setMessage({ type: 'error', text: err?.message || 'Có lỗi xảy ra.' })
     } finally {
       setLoading(false)
     }
@@ -37,7 +39,19 @@ export default function AddPageForm({ onSuccess }) {
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <h2 className="mb-4 text-lg font-semibold text-gray-800">Thêm Fanpage (Page Token)</h2>
+      <h2 className="mb-4 text-lg font-semibold text-gray-800">Thêm Fanpage thủ công (Page Token)</h2>
+      <p className="mb-4 text-sm text-gray-600">
+        Nếu không dùng nút Facebook Login, bạn có thể lấy Page ID và Token từ{' '}
+        <a
+          href="https://developers.facebook.com/tools/explorer/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 underline"
+        >
+          Graph API Explorer
+        </a>{' '}
+        rồi điền bên dưới.
+      </p>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-gray-700">Page ID</label>
@@ -45,7 +59,7 @@ export default function AddPageForm({ onSuccess }) {
             type="text"
             value={pageId}
             onChange={(e) => setPageId(e.target.value)}
-            placeholder="Nhập Page ID từ Graph API"
+            placeholder="Nhập Page ID"
             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition"
           />
         </div>
@@ -55,7 +69,7 @@ export default function AddPageForm({ onSuccess }) {
             type="text"
             value={pageName}
             onChange={(e) => setPageName(e.target.value)}
-            placeholder="Tên hiển thị của Page"
+            placeholder="Tên hiển thị"
             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition"
           />
         </div>
@@ -65,7 +79,7 @@ export default function AddPageForm({ onSuccess }) {
             type="password"
             value={pageAccessToken}
             onChange={(e) => setPageAccessToken(e.target.value)}
-            placeholder="Token lấy từ Graph API Explorer"
+            placeholder="Token từ Graph API Explorer"
             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition"
           />
         </div>
@@ -85,7 +99,7 @@ export default function AddPageForm({ onSuccess }) {
           disabled={loading}
           className="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? 'Đang lưu...' : 'Lưu Page'}
+          {loading ? 'Đang lưu...' : 'Lưu Page (chỉ trên trình duyệt)'}
         </button>
       </form>
     </div>
