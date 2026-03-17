@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import DatePicker from 'react-datepicker'
 import "react-datepicker/dist/react-datepicker.css" // Đừng quên import CSS của datepicker
 import { getPages, addScheduledPost } from '../services/storage'
+import { publishPost } from '../services/facebookApi'
 
 export default function CreatePostForm({ onSuccess }) {
   const [pages, setPages] = useState([])
@@ -9,7 +10,7 @@ export default function CreatePostForm({ onSuccess }) {
   const [content, setContent] = useState('')
   const [scheduledTime, setScheduledTime] = useState(null)
   // State mới để lưu file media
-  const [mediaFiles, setMediaFiles] = useState([]) 
+  const [mediaFiles, setMediaFiles] = useState([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
 
@@ -24,14 +25,52 @@ export default function CreatePostForm({ onSuccess }) {
   // Hàm xử lý khi người dùng chọn file
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files)
-    // Có thể thêm logic kiểm tra dung lượng/loại file ở đây
+    if (files.length === 0) return
+
+    // Rule: không trộn ảnh + video; video chỉ 1 file
+    const hasVideo = files.some((f) => (f.type || '').startsWith('video/'))
+    const hasImage = files.some((f) => (f.type || '').startsWith('image/'))
+
+    if (hasVideo && (hasImage || mediaFiles.some((f) => (f.type || '').startsWith('image/')))) {
+      setMessage({ type: 'error', text: 'Không thể chọn chung ảnh và video trong cùng 1 bài.' })
+      e.target.value = ''
+      return
+    }
+    if (hasImage && mediaFiles.some((f) => (f.type || '').startsWith('video/'))) {
+      setMessage({ type: 'error', text: 'Không thể chọn chung ảnh và video trong cùng 1 bài.' })
+      e.target.value = ''
+      return
+    }
+    if (hasVideo && (mediaFiles.length > 0 || files.length > 1)) {
+      setMessage({ type: 'error', text: 'Hiện chỉ hỗ trợ 1 video mỗi bài.' })
+      e.target.value = ''
+      return
+    }
+
+    // Append
     setMediaFiles((prev) => [...prev, ...files])
+    e.target.value = ''
   }
 
   // Hàm xóa file đã chọn
   const removeFile = (indexToRemove) => {
     setMediaFiles((prev) => prev.filter((_, index) => index !== indexToRemove))
   }
+
+  const previews = useMemo(() => {
+    return mediaFiles.map((file) => ({
+      file,
+      url: file.type?.startsWith('image/') ? URL.createObjectURL(file) : null,
+    }))
+  }, [mediaFiles])
+
+  useEffect(() => {
+    return () => {
+      previews.forEach((p) => {
+        if (p.url) URL.revokeObjectURL(p.url)
+      })
+    }
+  }, [previews])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -70,6 +109,41 @@ export default function CreatePostForm({ onSuccess }) {
       onSuccess?.()
     } catch (err) {
       setMessage({ type: 'error', text: err?.message || 'Có lỗi xảy ra.' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handlePostNow = async () => {
+    setMessage({ type: '', text: '' })
+
+    if (!content.trim() && mediaFiles.length === 0) {
+      setMessage({ type: 'error', text: 'Vui lòng nhập nội dung hoặc chọn ảnh/video.' })
+      return
+    }
+
+    const page = pages.find((p) => p.pageId === pageId)
+    if (!page) {
+      setMessage({ type: 'error', text: 'Vui lòng chọn Fanpage.' })
+      return
+    }
+
+    setLoading(true)
+    try {
+      await publishPost({
+        pageId: page.pageId,
+        pageAccessToken: page.pageAccessToken,
+        message: content.trim(),
+        mediaFiles,
+      })
+
+      setMessage({ type: 'success', text: 'Đã đăng bài ngay lập tức!' })
+      setContent('')
+      setScheduledTime(null)
+      setMediaFiles([])
+      onSuccess?.()
+    } catch (err) {
+      setMessage({ type: 'error', text: err?.message || 'Đăng bài thất bại.' })
     } finally {
       setLoading(false)
     }
@@ -126,17 +200,20 @@ export default function CreatePostForm({ onSuccess }) {
             onChange={handleFileChange}
             className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
           />
+          <p className="mt-2 text-xs text-gray-500">
+            Lưu ý: Không trộn ảnh và video trong 1 bài. Video chỉ hỗ trợ 1 file.
+          </p>
           
           {/* Khu vực xem trước (Preview) */}
-          {mediaFiles.length > 0 && (
+          {previews.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-3">
-              {mediaFiles.map((file, index) => (
+              {previews.map(({ file, url }, index) => (
                 <div key={index} className="relative h-20 w-20 rounded-md border border-gray-200 overflow-hidden group">
                   {file.type.startsWith('image/') ? (
-                    <img src={URL.createObjectURL(file)} alt="preview" className="h-full w-full object-cover" />
+                    <img src={url} alt="preview" className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs text-gray-500 text-center p-1">
-                      Video<br/>{file.name.substring(0, 8)}...
+                      Video<br />{file.name.substring(0, 10)}...
                     </div>
                   )}
                   <button
@@ -182,13 +259,24 @@ export default function CreatePostForm({ onSuccess }) {
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={loading || pages.length === 0}
-          className="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? 'Đang xử lý...' : 'Lên lịch đăng'}
-        </button>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={handlePostNow}
+            disabled={loading || pages.length === 0}
+            className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {loading ? 'Đang xử lý...' : 'Đăng ngay'}
+          </button>
+
+          <button
+            type="submit"
+            disabled={loading || pages.length === 0}
+            className="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? 'Đang xử lý...' : 'Lên lịch đăng'}
+          </button>
+        </div>
       </form>
     </div>
   )

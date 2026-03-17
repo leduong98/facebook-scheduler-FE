@@ -2,6 +2,8 @@
  * Lưu Pages và Scheduled Posts trong localStorage (chỉ FE, không BE).
  */
 
+import { savePostMedia, deletePostMedia } from './mediaStore'
+
 const KEY_PAGES = 'fb_scheduler_pages'
 const KEY_POSTS = 'fb_scheduler_posts'
 
@@ -51,8 +53,15 @@ export function addScheduledPost(post) {
     pageAccessToken: post.pageAccessToken,
     content: post.content,
     scheduledTime: post.scheduledTime,
+    mediaMeta: [],
     status: 'PENDING',
     errorMessage: null,
+  }
+  // Lưu media vào IndexedDB (nếu có). Không chặn UI (fire-and-forget).
+  if (post.media?.length) {
+    savePostMedia(id, post.media)
+      .then((meta) => updateScheduledPost(id, { mediaMeta: meta }))
+      .catch(() => {})
   }
   posts.push(newPost)
   saveScheduledPosts(posts)
@@ -65,4 +74,12 @@ export function updateScheduledPost(id, update) {
   if (i === -1) return
   posts[i] = { ...posts[i], ...update }
   saveScheduledPosts(posts)
+}
+
+export function removeScheduledPost(id) {
+  const posts = getScheduledPosts()
+  const next = posts.filter((p) => p.id !== id)
+  saveScheduledPosts(next)
+  // dọn media
+  deletePostMedia(id).catch(() => {})
 }

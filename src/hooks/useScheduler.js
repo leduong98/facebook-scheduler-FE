@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { getScheduledPosts, updateScheduledPost } from '../services/storage'
-import { postToPageFeed } from '../services/facebookApi'
+import { publishPost } from '../services/facebookApi'
+import { getPostMedia } from '../services/mediaStore'
 
 /**
  * Mỗi phút quét bài PENDING đã đến giờ, gọi Facebook API đăng, cập nhật SUCCESS/FAILED.
@@ -11,7 +12,7 @@ export function useScheduler(onTick) {
   onTickRef.current = onTick
 
   useEffect(() => {
-    const run = () => {
+    const run = async () => {
       const now = new Date().toISOString()
       const posts = getScheduledPosts()
       const due = posts.filter(
@@ -20,16 +21,24 @@ export function useScheduler(onTick) {
       if (due.length === 0) return
       for (const post of due) {
         try {
-          postToPageFeed(post.pageId, post.pageAccessToken, post.content)
+          const media = await getPostMedia(post.id)
+          const mediaFiles = (media || []).map((m) => m.file).filter(Boolean)
+          await publishPost({
+            pageId: post.pageId,
+            pageAccessToken: post.pageAccessToken,
+            message: post.content,
+            mediaFiles,
+          })
           updateScheduledPost(post.id, { status: 'SUCCESS', errorMessage: null })
         } catch (err) {
           updateScheduledPost(post.id, {
             status: 'FAILED',
             errorMessage: err?.message || 'Lỗi đăng bài',
           })
+        } finally {
+          onTickRef.current?.()
         }
       }
-      onTickRef.current?.()
     }
 
     run()
